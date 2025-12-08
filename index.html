@@ -25,10 +25,7 @@
         <div class="hamburger" id="hamburger"><i class="fas fa-bars"></i></div>
         <div class="logo">WimHub</div>
         <div class="header-icons">
-            <button class="icon-btn" id="cart-btn">
-                <i class="fas fa-shopping-cart"></i>
-                <span id="cart-count">0</span>
-            </button>
+            <button class="icon-btn" id="cart-btn"><i class="fas fa-shopping-cart"></i><span id="cart-count">0</span></button>
         </div>
         
         <div id="location-display" style="display:none;">
@@ -41,7 +38,7 @@
         <ul>
             <li data-view="home" class="active"><i class="fas fa-home"></i> Home</li>
             <li data-view="products"><i class="fas fa-box-open"></i> Products</li>
-            <li data-view="cart"><i class="fas fa-shopping-cart"></i> My Cart</li>
+            <li data-view="cart"><i class="fas fa-shopping-cart"></i> Cart</li>
             <li data-view="orders"><i class="fas fa-receipt"></i> Orders</li>
             <li data-view="queries"><i class="fas fa-envelope"></i> Queries & Complaints</li>
             <li data-view="profile"><i class="fas fa-user"></i> Profile</li>
@@ -51,7 +48,7 @@
 
     <div class="cart-drawer" id="cart-drawer">
         <div class="cart-header">
-            <h3>Shopping Bag</h3>
+            <h3>Shopping Cart</h3>
             <button class="close-btn" id="close-cart-btn"><i class="fas fa-times"></i></button>
         </div>
         <div class="cart-items" id="cart-items">
@@ -122,14 +119,12 @@
     <div class="toast-container" id="toast-container"></div>
 
     <main>
-    
     <section class="view-section active" id="home-view">
         <div class="hero-banner">
             <div class="banner-slider" id="banner-slider"></div>
             <div class="banner-dots" id="banner-dots"></div>
         </div>
         <div class="category-grid" id="category-list"></div>
-        
         <div class="products-header">
             <h2>Popular Products</h2>
         </div>
@@ -164,15 +159,11 @@
     </section>
     
     <section class="view-section" id="cart-view">
-        <h2 class="view-title">My Cart & Checkout</h2>
-        
+        <h2 class="view-title">My Cart</h2>
         <div class="cart-view-container">
-            <div class="cart-view-items" id="cart-view-items">
-                </div>
-
+            <div class="cart-view-items" id="cart-view-items"></div>
             <div class="cart-view-summary" id="cart-view-summary">
-                <h3>Order Details</h3>
-                
+                <h3>Checkout</h3>
                 <div class="cart-summary-details">
                     <div>
                         <span>Subtotal:</span>
@@ -187,26 +178,19 @@
                         <span id="checkout-total">₹0.00</span>
                     </div>
                 </div>
-                
                 <form class="checkout-form" id="checkout-form">
-                    <label>Name</label>
-                    <input type="text" id="checkout-name" required placeholder="Full Name">
-                    
-                    <label>Phone (10 Digit)</label>
-                    <input type="tel" id="checkout-phone" required maxlength="10" pattern="\d{10}" title="Please enter a valid 10-digit phone number" placeholder="9876543210">
-                    
-                    <label>Email</label>
-                    <input type="email" id="checkout-email" required placeholder="example@mail.com">
-                    
-                    <label>Address</label>
+                    <label>Name:</label>
+                    <input type="text" id="checkout-name" required>
+                    <label>Phone (10 Digit):</label>
+                    <input type="tel" id="checkout-phone" required maxlength="10" pattern="\d{10}" title="Please enter a valid 10-digit phone number">
+                    <label>Email (Primary):</label>
+                    <input type="email" id="checkout-email" required>
+                    <label>Address:</label>
                     <div class="input-with-btn">
-                        <input type="text" id="checkout-address" required placeholder="House No, Street, City...">
-                        <button type="button" id="detect-address-btn" class="detect-btn" title="Detect Current Location">
-                            <i class="fas fa-map-marker-alt"></i>
-                        </button>
+                        <input type="text" id="checkout-address" required placeholder="Enter full address or detect location">
+                        <button type="button" id="detect-address-btn" class="detect-btn" title="Get Address from Location"><i class="fas fa-map-marker-alt"></i></button>
                     </div>
-                    
-                    <button type="submit" class="place-order-btn">Place Order</button>
+                    <button type="submit" class="checkout-btn">Place Order</button>
                 </form>
             </div>
         </div>
@@ -234,7 +218,7 @@
                 <label>Email</label>
                 <input type="email" id="query-email" required>
                 <label>Message</label>
-                <textarea id="query-message" required placeholder="Describe your issue..."></textarea>
+                <textarea id="query-message" required></textarea>
                 <button type="submit">Submit</button>
             </form>
         </div>
@@ -244,19 +228,17 @@
         <h2 class="view-title">My Profile</h2>
         <div class="profile-container">
             <div class="profile-info" id="profile-info"></div>
-            
             <form id="update-profile-form">
-                <label>Name</label>
+                <label>Name:</label>
                 <input type="text" id="update-name" required>
-                <label>Email (Primary)</label>
+                <label>Email (Primary):</label>
                 <input type="email" id="update-email" required>
-                <label>Phone (Primary)</label>
+                <label>Phone (Primary):</label>
                 <input type="text" id="update-phone" required>
-                <label>Address</label>
+                <label>Address:</label>
                 <input type="text" id="update-address" required>
                 <button type="submit">Save Changes</button>
             </form>
-            
             <div class="profile-buttons">
                 <button id="edit-profile-btn" class="map-btn">Update Profile</button>
                 <button id="profile-map-btn" class="map-btn">Update Location</button>
@@ -267,15 +249,14 @@
 
     <section class="view-section" id="map-view">
         <h2 class="view-title">Choose Your Location</h2>
-        <p>Drag the marker to your exact delivery location.</p>
+        <p>Drag the marker to your exact location. This will be used for delivery.</p>
         <div id="map-container"></div>
-        <div style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
+        <div style="display:flex; justify-content:center; gap:1rem;">
             <button id="detect-location-btn"><i class="fas fa-crosshairs"></i> Get Current Location</button>
             <button id="save-location-btn" class="change-location-btn">Save Location</button>
         </div>
     </section>
 </main>
-    
     <div id="qrcode-temp-container" style="position:absolute;left:-9999px;top:-9999px;"></div>
 
     <footer class="footer-bar">
