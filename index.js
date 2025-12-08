@@ -172,6 +172,7 @@ function switchView(viewId, skipHistory = false) {
     const drawerItem = document.querySelector(`[data-view="${viewId.replace('-view', '')}"]`);
     if (drawerItem) drawerItem.classList.add('active');
     elements.drawer.classList.remove('open');
+    // Ensure popup cart is closed when switching main views
     elements.cartDrawer.classList.remove('open');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -185,7 +186,7 @@ window.addEventListener("popstate", (event) => {
     switchView(viewId, true);
 });
 
-// ================= NEW AUTH LOGIC WITH BUTTON LOADERS =================
+// ================= NEW AUTH LOGIC =================
 
 // Helper: Toggle Button Loading State
 function setButtonLoading(btn, isLoading) {
@@ -193,11 +194,9 @@ function setButtonLoading(btn, isLoading) {
     const span = btn.querySelector('.btn-text');
     if (isLoading) {
         if (!btn.getAttribute('data-original-text')) {
-             // Save original text/html mostly for the span content
              if(span) btn.setAttribute('data-original-text', span.textContent);
         }
         btn.disabled = true;
-        // Keep the img if exists (Google btn) but hide text and show spinner
         if(span) span.style.opacity = '0';
         
         let loader = btn.querySelector('.btn-loader');
@@ -218,7 +217,7 @@ function setButtonLoading(btn, isLoading) {
 window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
     'size': 'normal',
     'callback': (response) => {
-        // reCAPTCHA solved, allow signInWithPhoneNumber.
+        // reCAPTCHA solved
     }
 });
 
@@ -228,7 +227,6 @@ async function ensureUserProfile(user) {
     const snapshot = await userRef.once('value');
     const currentData = snapshot.val() || {};
     
-    // Prioritize DB data if it exists, otherwise use Auth data, otherwise empty string
     const updates = {
         name: currentData.name || user.displayName || ('User ' + (user.phoneNumber ? user.phoneNumber.slice(-4) : '')),
         email: currentData.email || user.email || '',
@@ -238,7 +236,6 @@ async function ensureUserProfile(user) {
         address: currentData.address || ''
     };
     
-    // Only update if we have new data to add/sync
     await userRef.update(updates);
 }
 
@@ -255,7 +252,7 @@ auth.onAuthStateChanged(async user => {
                 updateLocationDisplay(profile.lat, profile.lng);
             }
         });
-        renderCart();
+        updateCartUI(); // Load cart on login
     } else {
         elements.logoutDrawerBtn.style.display = 'none';
         elements.locationDisplay.style.display = 'none';
@@ -290,7 +287,6 @@ elements.sendOtpBtn.addEventListener('click', async () => {
         showToast("Please enter a phone number");
         return;
     }
-    // Hardcoded India +91 logic
     if (phoneNumber.length !== 10) {
         showToast("Please enter a valid 10-digit number");
         return;
@@ -308,7 +304,6 @@ elements.sendOtpBtn.addEventListener('click', async () => {
     } catch (error) {
         showToast("SMS Error: " + error.message);
         console.error(error);
-        // Reset recaptcha if failed
         window.recaptchaVerifier.render().then(function(widgetId) {
             grecaptcha.reset(widgetId);
         });
@@ -364,9 +359,7 @@ async function handleLogout() {
 elements.profileLogoutBtn.addEventListener('click', handleLogout);
 elements.logoutDrawerBtn.addEventListener('click', handleLogout);
 
-
 // ================= END NEW AUTH LOGIC =================
-
 
 // UI Listeners
 elements.hamburger.addEventListener('click', () => {
@@ -383,7 +376,6 @@ elements.drawerItems.forEach(item => {
                 if (!appState.currentUser) {
                     showToast('Please login to view orders.');
                     elements.loginModal.classList.add('open');
-                    // Render Recaptcha only when modal opens to avoid ID issues
                         if(window.recaptchaVerifier) window.recaptchaVerifier.render();
                     return;
                 }
@@ -404,14 +396,22 @@ elements.drawerItems.forEach(item => {
                 }
                 loadProfile();
             } else if (view === 'cart') {
-                renderCartView();
+                // If they click 'Cart' in drawer, go to full checkout page if logged in
+                if (!appState.currentUser) {
+                     // Just open popup if not logged in
+                     elements.cartDrawer.classList.add('open');
+                } else {
+                    switchView('cart-view');
+                    loadUserProfileForCheckout();
+                }
+                return; 
             }
             switchView(`${view}-view`);
         }
     });
 });
 
-// Cart
+// Cart Toggle
 elements.cartBtn.addEventListener('click', () => {
     elements.cartDrawer.classList.toggle('open');
 });
@@ -450,7 +450,6 @@ function createProductCard(product) {
         </div>
     `;
 
-    // Listeners
     if (cartItem) {
         card.querySelector('.minus').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -463,7 +462,6 @@ function createProductCard(product) {
     } else {
         card.querySelector('.add-to-cart-btn').addEventListener('click', (e) => {
             e.stopPropagation();
-            // NOTE: Use originalId for buyCount tracking to match DB schema, but unique ID for cart
             const trackingId = product.originalId || product.id;
             db.ref(`popularProducts/${trackingId}/buyCount`).transaction(count => (count || 0) + 1);
             addToCart({ ...product, category: appState.currentCategory || 'general' });
@@ -479,7 +477,6 @@ function updateProductGrids() {
     if(document.getElementById('products-view').classList.contains('active')) {
         renderProducts('');
     }
-    // Update search grid if active
     if(document.getElementById('search-view').classList.contains('active')) {
         renderSearchResults(elements.globalSearchInput.value);
     }
@@ -492,12 +489,42 @@ function addToCart(product) {
         appState.cart[product.id] = { ...product, qty: 1 };
     }
     localStorage.setItem('cart', JSON.stringify(appState.cart));
-    renderCart();
-    updateProductGrids(); // Update buttons
+    updateCartUI(); // Updates both Drawer and Checkout Page
+    updateProductGrids();
     showToast(`${product.name} added to cart!`);
 }
 
-function renderCart() {
+function changeQty(productId, change) {
+    if (appState.cart[productId]) {
+        appState.cart[productId].qty += change;
+        if (appState.cart[productId].qty <= 0) {
+            delete appState.cart[productId];
+        }
+        localStorage.setItem('cart', JSON.stringify(appState.cart));
+        updateCartUI(); // Updates both Drawer and Checkout Page
+        updateProductGrids();
+    }
+}
+
+function removeFromCart(productId) {
+    if (confirm('Are you sure you want to remove this item?')) {
+        delete appState.cart[productId];
+        localStorage.removeItem('cart');
+        updateCartUI(); // Updates both Drawer and Checkout Page
+        updateProductGrids();
+    }
+}
+
+// ================= UNIFIED CART LOGIC =================
+
+// Call this whenever cart changes
+function updateCartUI() {
+    renderCartDrawer();
+    renderCheckoutPage();
+}
+
+// 1. Render the Popup Drawer (Shopping Bag)
+function renderCartDrawer() {
     let html = '';
     let subtotal = 0;
     let totalItems = 0;
@@ -538,53 +565,16 @@ function renderCart() {
     elements.cartItems.innerHTML = html;
     elements.cartSubtotal.textContent = `₹${subtotal.toFixed(2)}`;
     elements.cartCount.textContent = totalItems;
-    renderCartView();
 }
 
-async function renderPopularProducts() {
-    const grid = document.getElementById('popular-products-grid');
-    grid.innerHTML = '';
-    
-    // Use cached data for instant UI updates
-    const popular = [...appState.products]
-        .sort((a, b) => (b.buyCount || 0) - (a.buyCount || 0))
-        .slice(0, 6);
-
-    if (popular.length === 0) {
-        grid.innerHTML = '<p style="text-align:center; grid-column: 1/-1; color:#777;">No popular products yet.</p>';
-        return;
-    }
-
-    popular.forEach(product => {
-        grid.appendChild(createProductCard(product));
-    });
-}
-
-function renderHomeProducts(query = '') {
-    const grid = document.getElementById('home-products-grid');
-    grid.innerHTML = '';
-    const filteredProducts = appState.products.filter(product =>
-        product.name.toLowerCase().includes(query.toLowerCase())
-    );
-
-    if (filteredProducts.length === 0) {
-        grid.innerHTML = '<p style="text-align:center; grid-column: 1/-1; color:#777;">No products found.</p>';
-        return;
-    }
-
-    filteredProducts.forEach(product => {
-        grid.appendChild(createProductCard(product));
-    });
-}
-
-
-function renderCartView() {
+// 2. Render the Full Checkout Page (My Cart View)
+function renderCheckoutPage() {
     let html = '';
     let subtotal = 0;
     const cartItems = Object.values(appState.cart);
 
     if (cartItems.length === 0) {
-        html = '<p style="text-align:center; color:#777;">Your cart is empty.</p>';
+        html = '<p style="text-align:center; color:#777; padding: 2rem;">Your cart is empty.</p>';
     } else {
         html += `
             <div class="cart-view-item-header">
@@ -617,35 +607,16 @@ function renderCartView() {
             `;
         });
     }
+    
     elements.cartViewItems.innerHTML = html;
     elements.checkoutSubtotal.textContent = `₹${subtotal.toFixed(2)}`;
-    const total = subtotal + (subtotal > 0 ? DELIVERY_CHARGE : 0);
+    
+    // Only apply delivery charge if cart is not empty
+    const total = subtotal > 0 ? (subtotal + DELIVERY_CHARGE) : 0;
     elements.checkoutTotal.textContent = `₹${total.toFixed(2)}`;
 }
 
-function changeQty(productId, change) {
-    if (appState.cart[productId]) {
-        appState.cart[productId].qty += change;
-        if (appState.cart[productId].qty <= 0) {
-            delete appState.cart[productId];
-        }
-        localStorage.setItem('cart', JSON.stringify(appState.cart));
-        renderCart();
-        renderCartView();
-        updateProductGrids();
-    }
-}
-
-function removeFromCart(productId) {
-    if (confirm('Are you sure you want to remove this item?')) {
-        delete appState.cart[productId];
-        localStorage.removeItem('cart');
-        renderCart();
-        renderCartView();
-        updateProductGrids();
-    }
-}
-
+// 3. Link: Click "Checkout" in Drawer -> Go to "My Cart" Page with Form
 elements.checkoutBtn.addEventListener('click', () => {
     if (!appState.currentUser) {
         showToast('Please login to checkout.');
@@ -654,17 +625,57 @@ elements.checkoutBtn.addEventListener('click', () => {
         if(window.recaptchaVerifier) window.recaptchaVerifier.render();
         return;
     }
-    switchView('cart-view');
+    
+    // Switch View Logic
     elements.cartDrawer.classList.remove('open');
+    switchView('cart-view');
+    
+    // Populate Form
     loadUserProfileForCheckout();
 });
+
+// ===============================================
+
+async function renderPopularProducts() {
+    const grid = document.getElementById('popular-products-grid');
+    grid.innerHTML = '';
+    
+    const popular = [...appState.products]
+        .sort((a, b) => (b.buyCount || 0) - (a.buyCount || 0))
+        .slice(0, 6);
+
+    if (popular.length === 0) {
+        grid.innerHTML = '<p style="text-align:center; grid-column: 1/-1; color:#777;">No popular products yet.</p>';
+        return;
+    }
+
+    popular.forEach(product => {
+        grid.appendChild(createProductCard(product));
+    });
+}
+
+function renderHomeProducts(query = '') {
+    const grid = document.getElementById('home-products-grid');
+    grid.innerHTML = '';
+    const filteredProducts = appState.products.filter(product =>
+        product.name.toLowerCase().includes(query.toLowerCase())
+    );
+
+    if (filteredProducts.length === 0) {
+        grid.innerHTML = '<p style="text-align:center; grid-column: 1/-1; color:#777;">No products found.</p>';
+        return;
+    }
+
+    filteredProducts.forEach(product => {
+        grid.appendChild(createProductCard(product));
+    });
+}
 
 async function loadUserProfileForCheckout() {
     if (!appState.currentUser) return;
     const snapshot = await db.ref(`users/${appState.currentUser.uid}`).once('value');
     const profile = snapshot.val() || {};
     
-    // Auto-fill priority: DB Profile -> Auth Provider -> Empty
     const autoName = profile.name || appState.currentUser.displayName || '';
     const autoPhone = profile.phone || appState.currentUser.phoneNumber || '';
     const autoEmail = profile.email || appState.currentUser.email || '';
@@ -675,14 +686,13 @@ async function loadUserProfileForCheckout() {
     elements.checkoutEmail.value = autoEmail;
     elements.checkoutAddress.value = autoAddress;
     
-    // Make Primary Keys Readonly if they are the login source
     elements.checkoutEmail.readOnly = !!appState.currentUser.email;
     elements.checkoutPhone.readOnly = !!appState.currentUser.phoneNumber && !appState.currentUser.email;
 
-    renderCartView();
+    updateCartUI();
 }
 
-// --- NEW ADDRESS DETECTION LOGIC ---
+// Address Detection
 if(elements.detectAddressBtn) {
     elements.detectAddressBtn.addEventListener('click', async () => {
         showLoader();
@@ -690,7 +700,6 @@ if(elements.detectAddressBtn) {
             const loc = await getCurrentLocation();
             if (loc.lat && loc.lng) {
                 appState.currentLocation = loc;
-                // Use Nominatim Reverse Geocoding
                 const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}`);
                 const data = await response.json();
                 
@@ -771,19 +780,16 @@ elements.checkoutForm.addEventListener('submit', async (e) => {
             createdAt: firebase.database.ServerValue.TIMESTAMP
         };
 
-        // 1. Save Order
         await db.ref(`orders/${orderId}`).set(orderData);
 
-        // 2. NEW: Save Checkout Details to Profile
         await db.ref(`users/${appState.currentUser.uid}`).update({
             name: customerName,
             address: address,
-            phone: phone, // Will update unless logic prevents overwrite elsewhere, but beneficial for keeping latest contact info
+            phone: phone,
             email: email
         });
 
         items.forEach(item => {
-            // Use originalId if available to track stats correctly
             const trackId = item.originalId || item.id;
             db.ref(`popularProducts/${trackId}/buyCount`)
                 .transaction(count => (count || 0) + item.qty);
@@ -791,7 +797,7 @@ elements.checkoutForm.addEventListener('submit', async (e) => {
 
         appState.cart = {};
         localStorage.removeItem('cart');
-        renderCart();
+        updateCartUI(); // Clear cart in UI
         updateProductGrids();
 
         const overlay = document.getElementById('order-success-overlay');
@@ -1015,7 +1021,6 @@ window.addEventListener("load", () => {
 });
 
 // Products View
-// FIXED: Added composite ID generation logic to prevent ID collision across categories
 async function loadProducts(category = null) {
     showLoader();
     elements.productsGrid.innerHTML = '';
@@ -1030,14 +1035,12 @@ async function loadProducts(category = null) {
         if (category) {
             const categoryData = data[category] || null;
             if (categoryData && typeof categoryData === 'object' && (categoryData.name === undefined)) {
-                // Nested, specific category
                 allProducts = Object.entries(categoryData).map(([key, val]) => ({ 
-                    id: `${category}_${key}`, // Generate Composite ID
+                    id: `${category}_${key}`, 
                     originalId: key,
                     ...val 
                 }));
             } else {
-                // Flat or direct match
                 allProducts = Object.entries(data)
                     .filter(([k, v]) => v && v.category === category)
                     .map(([key, val]) => ({ id: key, ...val }));
@@ -1046,18 +1049,14 @@ async function loadProducts(category = null) {
             const keys = Object.keys(data);
             if (keys.length > 0) {
                 const firstVal = data[keys[0]];
-                // Simple heuristic to check if structure is flat or nested
                 const looksLikeProduct = firstVal && (firstVal.name !== undefined || firstVal.price !== undefined);
                 
                 if (looksLikeProduct) {
-                    // Flat structure
                     allProducts = Object.entries(data).map(([key, val]) => ({ id: key, ...val }));
                 } else {
-                    // Nested structure (Categories -> Products)
                     Object.entries(data).forEach(([catKey, catVal]) => {
                         if (catVal && typeof catVal === 'object') {
                             Object.entries(catVal).forEach(([prodKey, prodVal]) => {
-                                // FORCE UNIQUE ID by combining Category + Key
                                 const uniqueId = `${catKey}_${prodKey}`;
                                 allProducts.push({ 
                                     id: uniqueId, 
@@ -1099,7 +1098,6 @@ function renderProducts(query = '') {
     });
 }
 
-// New Global Search Logic
 function renderSearchResults(query = '') {
     const grid = elements.searchResultsGrid;
     grid.innerHTML = '';
@@ -1244,7 +1242,6 @@ async function loadProfile() {
             elements.updatePhone.value = autoPhone;
             elements.updateAddress.value = autoAddress;
             
-            // Set ReadOnly based on Login Method
             if(appState.currentUser.email) elements.updateEmail.readOnly = true;
             if(appState.currentUser.phoneNumber) elements.updatePhone.readOnly = true;
 
@@ -1288,7 +1285,7 @@ elements.updateProfileForm.addEventListener('submit', async (e) => {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadAds();
-    renderCart();
+    updateCartUI(); // Initial cart render
     loadProducts().then(() => {
         renderHomeProducts();
         renderCategories();
@@ -1337,7 +1334,6 @@ async function initMap() {
     }
 }
 
-// Detect Location Button Logic
 if (elements.detectLocationBtn) {
     elements.detectLocationBtn.addEventListener('click', async () => {
         showLoader();
@@ -1426,7 +1422,14 @@ document.querySelectorAll('.footer-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const view = btn.getAttribute('data-view');
         if(view === 'cart') {
-            renderCartView();
+            // Cart button in footer should behave like clicking 'Checkout'/My Cart directly
+            if (!appState.currentUser) {
+                // Show Drawer if not logged in
+                elements.cartDrawer.classList.add('open');
+            } else {
+                switchView('cart-view');
+                loadUserProfileForCheckout();
+            }
         } else if(view === 'orders') {
             if (!appState.currentUser) {
                 showToast('Please login to view orders.');
@@ -1444,12 +1447,14 @@ document.querySelectorAll('.footer-btn').forEach(btn => {
             }
             loadProfile();
         } else if(view === 'search') {
-                // Auto focus input when switching to search view
                 setTimeout(() => {
                 elements.globalSearchInput.focus();
                 }, 300);
+            switchView(view + '-view');
+        } else {
+            switchView(view + '-view');
         }
-        switchView(view + '-view');
+        
         document.querySelectorAll('.footer-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
     });
