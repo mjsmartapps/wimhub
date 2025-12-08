@@ -411,7 +411,9 @@ elements.drawerItems.forEach(item => {
                     if(window.recaptchaVerifier) window.recaptchaVerifier.render();
                     return;
                 }
+                // === UPDATE: Load fresh profile data when accessing via drawer ===
                 renderCartView();
+                loadUserProfileForCheckout();
             }
             switchView(`${view}-view`);
         }
@@ -1185,6 +1187,18 @@ function renderOrders(orders) {
             }
         } catch(e) { otpHtml = ''; }
 
+        // --- UPDATED QR CODE LOGIC: SHOW ONLY IF STATUS IS SHIPPING ---
+        let qrCodeHtml = '';
+        if (status === 'SHIPPING') {
+            qrCodeHtml = `
+                <div class="order-qr">
+                    <img src="${order.qrCode}" alt="Order QR Code">
+                    <p style="font-size:0.8rem; color:#777; margin-top:0.5rem;">Scan for order details</p>
+                </div>
+            `;
+        }
+        // -------------------------------------------------------------
+
         orderCard.innerHTML = `
             <div class="order-header">
                 <h4>Order #${(order.id||'').substring(0, 8)}</h4>
@@ -1197,10 +1211,7 @@ function renderOrders(orders) {
                 <span>Total:</span>
                 <span>₹${(Number(order.total)||0).toFixed(2)}</span>
             </div>
-            <div class="order-qr">
-                <img src="${order.qrCode}" alt="Order QR Code">
-                <p style="font-size:0.8rem; color:#777; margin-top:0.5rem;">Scan for order details</p>
-            </div>
+            ${qrCodeHtml}
         `;
         elements.ordersList.appendChild(orderCard);
     });
@@ -1440,7 +1451,9 @@ document.querySelectorAll('.footer-btn').forEach(btn => {
                 if(window.recaptchaVerifier) window.recaptchaVerifier.render();
                 return; // Stop execution, do not switch view
             }
+            // === UPDATE: Load fresh profile data when accessing via footer ===
             renderCartView();
+            loadUserProfileForCheckout();
         } else if(view === 'orders') {
             if (!appState.currentUser) {
                 showToast('Please login to view orders.');
