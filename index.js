@@ -96,7 +96,6 @@ const elements = {
     loginModal: document.getElementById('login-modal'),
     loginModalContent: document.getElementById('login-modal-content'),
     closeLoginModal: document.getElementById('close-login-modal'),
-    modalTitle: document.getElementById('modal-title'),
     cartBtn: document.getElementById('cart-btn'),
     cartCount: document.getElementById('cart-count'),
     cartDrawer: document.getElementById('cart-drawer'),
@@ -186,7 +185,34 @@ window.addEventListener("popstate", (event) => {
     switchView(viewId, true);
 });
 
-// ================= NEW AUTH LOGIC =================
+// ================= NEW AUTH LOGIC WITH BUTTON LOADERS =================
+
+// Helper: Toggle Button Loading State
+function setButtonLoading(btn, isLoading) {
+    if (!btn) return;
+    const span = btn.querySelector('.btn-text');
+    if (isLoading) {
+        if (!btn.getAttribute('data-original-text')) {
+             // Save original text/html mostly for the span content
+             if(span) btn.setAttribute('data-original-text', span.textContent);
+        }
+        btn.disabled = true;
+        // Keep the img if exists (Google btn) but hide text and show spinner
+        if(span) span.style.opacity = '0';
+        
+        let loader = btn.querySelector('.btn-loader');
+        if (!loader) {
+            loader = document.createElement('div');
+            loader.className = 'btn-loader';
+            btn.appendChild(loader);
+        }
+    } else {
+        btn.disabled = false;
+        const loader = btn.querySelector('.btn-loader');
+        if (loader) loader.remove();
+        if(span) span.style.opacity = '1';
+    }
+}
 
 // Setup Recaptcha
 window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
@@ -245,6 +271,7 @@ elements.googleLoginBtn.addEventListener('click', async () => {
     const provider = new firebase.auth.GoogleAuthProvider();
     try {
         showLoader();
+        setButtonLoading(elements.googleLoginBtn, true);
         await auth.signInWithPopup(provider);
         elements.loginModal.classList.remove('open');
         showToast('Signed in with Google!');
@@ -252,6 +279,7 @@ elements.googleLoginBtn.addEventListener('click', async () => {
         showToast('Google Sign-In Error: ' + error.message);
     } finally {
         hideLoader();
+        setButtonLoading(elements.googleLoginBtn, false);
     }
 });
 
@@ -262,14 +290,18 @@ elements.sendOtpBtn.addEventListener('click', async () => {
         showToast("Please enter a phone number");
         return;
     }
-    if(!phoneNumber.startsWith("+91")) {
-        phoneNumber = "+91" + phoneNumber;
+    // Hardcoded India +91 logic
+    if (phoneNumber.length !== 10) {
+        showToast("Please enter a valid 10-digit number");
+        return;
     }
+    const fullPhoneNumber = "+91" + phoneNumber;
     
     const appVerifier = window.recaptchaVerifier;
     try {
         showLoader();
-        appState.confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, appVerifier);
+        setButtonLoading(elements.sendOtpBtn, true);
+        appState.confirmationResult = await auth.signInWithPhoneNumber(fullPhoneNumber, appVerifier);
         elements.phoneStep1.style.display = 'none';
         elements.phoneStep2.style.display = 'block';
         showToast("OTP Sent!");
@@ -282,6 +314,7 @@ elements.sendOtpBtn.addEventListener('click', async () => {
         });
     } finally {
         hideLoader();
+        setButtonLoading(elements.sendOtpBtn, false);
     }
 });
 
@@ -296,6 +329,7 @@ elements.verifyOtpBtn.addEventListener('click', async () => {
 
     try {
         showLoader();
+        setButtonLoading(elements.verifyOtpBtn, true);
         await appState.confirmationResult.confirm(code);
         elements.loginModal.classList.remove('open');
         showToast("Phone verified successfully!");
@@ -304,6 +338,7 @@ elements.verifyOtpBtn.addEventListener('click', async () => {
         console.error(error);
     } finally {
         hideLoader();
+        setButtonLoading(elements.verifyOtpBtn, false);
     }
 });
 
