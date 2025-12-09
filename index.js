@@ -260,7 +260,8 @@ auth.onAuthStateChanged(async user => {
         await ensureUserProfile(user);
         db.ref(`users/${user.uid}`).once('value', snapshot => {
             const profile = snapshot.val();
-            if (profile) updateLocationDisplay(profile.lat, profile.lng);
+            // Pass the full address string to the display function
+            if (profile) updateLocationDisplay(profile.lat, profile.lng, profile.address);
         });
         renderCart();
     } else {
@@ -649,14 +650,28 @@ elements.checkoutForm.addEventListener('submit', async (e) => {
         const subtotal = items.reduce((sum, item) => sum + (Number(item.price) || 0) * item.qty, 0);
         const total = subtotal + DELIVERY_CHARGE;
 
+        // FIXED QR CODE GENERATION
         const qrCodeDataURL = await new Promise(resolve => {
-            const qr = new QRCode(document.createElement("div"), {
+            // Create a dedicated container for generation
+            const container = document.createElement("div");
+            const qr = new QRCode(container, {
                 text: orderId, width: 128, height: 128,
                 colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H
             });
             setTimeout(() => {
-                const img = qr._el.querySelector("img");
-                if (img) resolve(img.src); else resolve("");
+                // Check for IMG first (standard behaviour)
+                const img = container.querySelector("img");
+                if (img && img.src) {
+                    resolve(img.src);
+                } else {
+                    // Fallback for Canvas (which qrcode.js often uses by default)
+                    const canvas = container.querySelector("canvas");
+                    if (canvas) {
+                        resolve(canvas.toDataURL());
+                    } else {
+                        resolve(""); // Failed to generate
+                    }
+                }
             }, 500);
         });
 
@@ -868,7 +883,11 @@ function renderOrders(orders) {
     orders.forEach(order => {
         const orderCard = document.createElement('div');
         orderCard.classList.add('order-card');
-        const status = order.status ? order.status.toUpperCase() : 'PENDING';
+        
+        // FIXED STATUS CHECK (Handle trailing spaces or case issues)
+        const rawStatus = order.status || 'PENDING';
+        const status = rawStatus.trim().toUpperCase();
+        
         let statusClass = 'status-pending';
         if(status === 'SHIPPING' || status === 'DELIVERED') statusClass = 'status-shipping';
         
@@ -881,7 +900,11 @@ function renderOrders(orders) {
         `).join('');
 
         let otpHtml = (status === 'SHIPPING' && order.otp) ? `<p><strong>OTP:</strong> ${order.otp}</p>` : '';
-        let qrCodeHtml = (status === 'SHIPPING') ? `<div class="order-qr"><img src="${order.qrCode}" width="100"><p>Scan for details</p></div>` : '';
+        let qrCodeHtml = (status === 'SHIPPING') ? `
+            <div class="order-qr">
+                <img src="${order.qrCode}" alt="QR Code">
+                <p>Scan for details</p>
+            </div>` : '';
 
         orderCard.innerHTML = `
             <div class="order-header">
@@ -937,7 +960,8 @@ async function loadProfile() {
 
         appState.currentLocation.lat = profile.lat;
         appState.currentLocation.lng = profile.lng;
-        updateLocationDisplay(profile.lat, profile.lng);
+        // Pass the address to the display updater
+        updateLocationDisplay(profile.lat, profile.lng, profile.address);
         elements.updateProfileForm.style.display = 'none';
     } catch (error) {} finally { hideLoader(); }
 }
@@ -999,8 +1023,13 @@ if (elements.detectLocationBtn) {
     });
 }
 
-function updateLocationDisplay(lat, lng) {
-    if (lat && lng) {
+function updateLocationDisplay(lat, lng, address) {
+    if (address) {
+        // Priority: Show full address string if available
+        elements.currentLocationText.textContent = address;
+        elements.locationDisplay.classList.add('active');
+    } else if (lat && lng) {
+        // Fallback: Show coordinates
         elements.currentLocationText.textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         elements.locationDisplay.classList.add('active');
     }
