@@ -135,8 +135,7 @@ const elements = {
     updatePhone: document.getElementById('update-phone'),
     updateAddress: document.getElementById('update-address'),
     // Auth elements
-    googleLoginBtn: document.getElementById('google-login-btn'),
-    loginPhone: document.getElementById('loginPhone'),
+loginPhone: document.getElementById('loginPhone'),
     sendOtpBtn: document.getElementById('send-otp-btn'),
     phoneStep1: document.getElementById('phone-step-1'),
     phoneStep2: document.getElementById('phone-step-2'),
@@ -221,6 +220,24 @@ window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-contai
         // reCAPTCHA solved, allow signInWithPhoneNumber.
     }
 });
+/* Store rendered widget id so we can check grecaptcha.getResponse(widgetId) later */
+let recaptchaWidgetId = null;
+window.recaptchaVerifier.render().then(function(widgetId){
+    recaptchaWidgetId = widgetId;
+}).catch(()=>{ /* ignore render errors for now */ });
+
+/* Utility: check if reCAPTCHA is solved */
+function isRecaptchaSolved() {
+    try {
+        if (window.grecaptcha && recaptchaWidgetId !== null) {
+            return !!grecaptcha.getResponse(recaptchaWidgetId);
+        }
+    } catch (e) {
+        console.warn('Recaptcha check failed', e);
+    }
+    return false;
+}
+
 
 // Check if user exists in DB, else create basic profile and SYNC email/phone
 async function ensureUserProfile(user) {
@@ -266,23 +283,6 @@ elements.closeLoginModal.addEventListener('click', () => {
     elements.loginModal.classList.remove('open');
 });
 
-// Google Login
-elements.googleLoginBtn.addEventListener('click', async () => {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    try {
-        showLoader();
-        setButtonLoading(elements.googleLoginBtn, true);
-        await auth.signInWithPopup(provider);
-        elements.loginModal.classList.remove('open');
-        showToast('Signed in with Google!');
-    } catch (error) {
-        showToast('Google Sign-In Error: ' + error.message);
-    } finally {
-        hideLoader();
-        setButtonLoading(elements.googleLoginBtn, false);
-    }
-});
-
 // Phone Login: Send OTP
 elements.sendOtpBtn.addEventListener('click', async () => {
     let phoneNumber = elements.loginPhone.value.trim();
@@ -296,6 +296,19 @@ elements.sendOtpBtn.addEventListener('click', async () => {
         return;
     }
     const fullPhoneNumber = "+91" + phoneNumber;
+    
+    
+    // --- NEW: ensure user completed the reCAPTCHA before attempting to send OTP ---
+    if (!isRecaptchaSolved()) {
+        showToast('Please complete the reCAPTCHA before sending OTP.');
+        // Visual hint on the recaptcha container
+        const rc = document.getElementById('recaptcha-container');
+        if (rc) {
+            rc.classList.add('recaptcha-warning');
+            setTimeout(() => rc.classList.remove('recaptcha-warning'), 2200);
+        }
+        return;
+    }
     
     const appVerifier = window.recaptchaVerifier;
     try {
