@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <title>WimHub | Premium Store</title>
+    <link rel="icon" type="image/png" href="https://i.postimg.cc/g2K6f9zN/wimhub-logo-removebg-preview.png">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    
+    <link rel="stylesheet" href="index.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-database.js"></script>
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+</head>
+<body>
+
+    <div class="loader-bar" id="loader-bar"></div>
+
+    <header class="glass-header">
+        <div class="header-content">
+            <div class="hamburger" id="hamburger"><i class="fas fa-bars"></i></div>
+            
+            <div class="logo-area">
+                <div class="logo">WimHub</div>
+                <div class="tagline">WITHIN MINUTES PARAMAKUDI</div>
+            </div>
+
+            <div class="header-icons">
+                <button class="icon-btn" id="cart-btn">
+                    <i class="fas fa-shopping-bag"></i>
+                    <span id="cart-count">0</span>
+                </button>
+            </div>
+        </div>
+        
+        <div id="location-display">
+            <i class="fas fa-map-marker-alt"></i>
+            <span id="current-location-text">Detecting location...</span>
+            <button class="change-btn" id="change-location-btn">Change</button>
+        </div>
+    </header>
+
+    <div class="drawer-overlay" id="drawer-overlay"></div>
+    <div class="drawer" id="drawer">
+        <div class="drawer-header">
+            <h3>Menu</h3>
+        </div>
+        <ul>
+            <li data-view="home" class="active"><i class="fas fa-home"></i> Home</li>
+            <li data-view="products"><i class="fas fa-layer-group"></i> Shop All</li>
+            <li data-view="cart"><i class="fas fa-shopping-bag"></i> My Cart</li>
+            <li data-view="orders"><i class="fas fa-receipt"></i> Orders</li>
+            <li data-view="queries"><i class="fas fa-headset"></i> Support</li>
+            <li data-view="profile"><i class="fas fa-user-circle"></i> Profile</li>
+            <li id="logout-drawer-btn" style="display:none;" class="logout-item"><i class="fas fa-sign-out-alt"></i> Logout</li>
+        </ul>
+    </div>
+
+    <div class="cart-drawer-overlay" id="cart-drawer-overlay"></div>
+    <div class="cart-drawer" id="cart-drawer">
+        <div class="cart-header">
+            <h3>Your Bag</h3>
+            <button class="close-btn" id="close-cart-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cart-items" id="cart-items">
+            </div>
+        <div class="cart-summary">
+            <div class="subtotal">
+                <span>Subtotal</span>
+                <span id="cart-subtotal">₹0.00</span>
+            </div>
+            <button class="checkout-btn" id="checkout-btn">
+                <span>Proceed to Checkout</span>
+                <i class="fas fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="login-modal">
+        <div class="modal-content login-modal-style" id="login-modal-content">
+            <div class="modal-header-clean">
+                <button class="close-btn-clean" id="close-login-modal"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="login-body">
+                <div class="login-welcome">
+                    <h2>Welcome Back</h2>
+                    <p>Enter your details to access your account</p>
+                </div>
+
+                <div id="phone-login-container">
+                    <div id="phone-step-1">
+                        <label class="input-label">Mobile Number</label>
+                        <div class="modern-input-group">
+                            <div class="country-code">
+                                <img src="https://flagcdn.com/w20/in.png" alt="India">
+                                <span>+91</span>
+                            </div>
+                            <input type="tel" id="loginPhone" placeholder="00000 00000" maxlength="10" pattern="[0-9]*" inputmode="numeric">
+                        </div>
+                        <div id="recaptcha-container" class="recaptcha-wrapper"></div>
+                        <button id="send-otp-btn" class="primary-btn-block">
+                            <span class="btn-text">Get OTP</span>
+                        </button>
+                    </div>
+                    
+                    <div id="phone-step-2" style="display:none;">
+                        <label class="input-label">Verification Code</label>
+                        <p class="otp-instruction">We sent a code to your phone</p>
+                        <div class="otp-input-container">
+                             <input type="text" id="loginOtp" placeholder="• • • • • •" maxlength="6" inputmode="numeric">
+                        </div>
+                        <button id="verify-otp-btn" class="primary-btn-block">
+                            <span class="btn-text">Verify & Login</span>
+                        </button>
+                        <button id="back-to-phone-btn" class="text-link-btn">Use different number</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <main>
+        <section class="view-section active" id="home-view">
+            <div class="hero-banner">
+                <div class="banner-slider" id="banner-slider"></div>
+                <div class="banner-dots" id="banner-dots"></div>
+                <div class="hero-overlay"></div>
+            </div>
+            
+            <div class="section-header">
+                <h2>Browse Categories</h2>
+            </div>
+            <div class="category-grid" id="category-list"></div>
+            
+            <div class="section-header">
+                <h2>Trending Now</h2>
+                <span class="see-all" onclick="document.querySelector('[data-view=products]').click()">See All</span>
+            </div>
+            <div class="products-grid" id="popular-products-grid"></div>
+
+            <div class="section-header">
+                <h2>New Arrivals</h2>
+            </div>
+            <div class="products-grid" id="home-products-grid"></div>
+        </section>
+        
+        <section class="view-section" id="search-view">
+            <div class="search-container-sticky">
+                <div class="search-input-group">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="global-search-input" placeholder="What are you looking for?">
+                </div>
+            </div>
+            <div class="section-header">
+                <h2>Results</h2>
+            </div>
+            <div class="products-grid" id="search-results-grid">
+                <div class="empty-state">Start typing to search...</div>
+            </div>
+        </section>
+
+        <section class="view-section" id="products-view">
+            <div class="section-header">
+                <h2 id="products-title">Collection</h2>
+            </div>
+            <div class="products-grid" id="products-grid"></div>
+        </section>
+        
+        <section class="view-section" id="cart-view">
+            <h2 class="view-title">Checkout</h2>
+            <div class="cart-view-container">
+                <div class="cart-view-items-wrapper">
+                    <div class="cart-view-items" id="cart-view-items"></div>
+                </div>
+                
+                <div class="cart-view-summary" id="cart-view-summary">
+                    <h3>Order Summary</h3>
+                    <div class="cart-summary-details">
+                        <div class="summary-row">
+                            <span>Subtotal</span>
+                            <span id="checkout-subtotal">₹0.00</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Delivery</span>
+                            <span id="delivery-charges">₹50.00</span>
+                        </div>
+                        <div class="summary-divider"></div>
+                        <div class="summary-row total">
+                            <span>Total</span>
+                            <span id="checkout-total">₹0.00</span>
+                        </div>
+                    </div>
+                    
+                    <form class="checkout-form" id="checkout-form">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" id="checkout-name" required placeholder="John Doe">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input type="tel" id="checkout-phone" required maxlength="10" pattern="\d{10}">
+                        </div>
+                        <div class="form-group">
+                            <label>Email Address</label>
+                            <input type="email" id="checkout-email" required placeholder="john@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Delivery Address</label>
+                            <div class="input-with-btn">
+                                <input type="text" id="checkout-address" required placeholder="House No, Street, Area">
+                                <button type="button" id="detect-address-btn" class="detect-btn" title="Use GPS">
+                                    <i class="fas fa-crosshairs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="submit" class="checkout-btn block">Confirm Order</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <section class="view-section" id="orders-view">
+            <h2 class="view-title">My Orders</h2>
+            <div class="orders-list" id="orders-list"></div>
+        </section>
+
+        <section class="view-section" id="queries-view">
+            <h2 class="view-title">Help & Support</h2>
+            <div class="queries-container">
+                <form class="queries-form" id="queries-form">
+                    <div class="form-group">
+                        <label>Your Name</label>
+                        <input type="text" id="query-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="query-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Message</label>
+                        <textarea id="query-message" required placeholder="How can we help you?"></textarea>
+                    </div>
+                    <button type="submit" class="primary-btn-block">Send Message</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="view-section" id="profile-view">
+            <h2 class="view-title">Account</h2>
+            <div class="profile-container">
+                <div class="profile-header-card">
+                    <div class="profile-avatar"><i class="fas fa-user"></i></div>
+                    <div id="profile-info"></div>
+                </div>
+                
+                <form id="update-profile-form">
+                    <h3>Edit Profile</h3>
+                    <div class="form-group"><label>Name</label><input type="text" id="update-name" required></div>
+                    <div class="form-group"><label>Email</label><input type="email" id="update-email" required></div>
+                    <div class="form-group"><label>Phone</label><input type="text" id="update-phone" required></div>
+                    <div class="form-group"><label>Address</label><input type="text" id="update-address" required></div>
+                    <button type="submit" class="primary-btn-block">Save Changes</button>
+                </form>
+
+                <div class="profile-actions">
+                    <button id="edit-profile-btn" class="action-btn"><i class="fas fa-edit"></i> Edit Details</button>
+                    <button id="profile-map-btn" class="action-btn"><i class="fas fa-map-marked-alt"></i> Update Location</button>
+                    <button id="profile-logout-btn" class="action-btn danger"><i class="fas fa-sign-out-alt"></i> Logout</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="view-section" id="map-view">
+            <div class="map-wrapper">
+                <div class="map-header">
+                    <h2>Pin Location</h2>
+                    <p>Drag the marker to your delivery spot</p>
+                </div>
+                <div id="map-container"></div>
+                <div class="map-controls">
+                    <button id="detect-location-btn" class="secondary-btn"><i class="fas fa-crosshairs"></i> Use GPS</button>
+                    <button id="save-location-btn" class="primary-btn">Confirm Location</button>
+                </div>
+            </div>
+        </section>
+
+        <div id="order-success-overlay">
+            <div class="success-content">
+                <div class="success-icon"><i class="fas fa-check"></i></div>
+                <h2>Order Confirmed!</h2>
+                <p>Sit back and relax, your items are on the way.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="qrcode-temp-container" style="display:none;"></div>
+
+    <footer class="footer-bar">
+        <button class="footer-btn active" data-view="home"><i class="fas fa-home"></i><span>Home</span></button>
+        <button class="footer-btn" data-view="search"><i class="fas fa-search"></i><span>Search</span></button>
+        <button class="footer-btn" data-view="cart"><i class="fas fa-shopping-bag"></i><span>Bag</span></button>
+        <button class="footer-btn" data-view="orders"><i class="fas fa-receipt"></i><span>Orders</span></button>
+        <button class="footer-btn" data-view="profile"><i class="fas fa-user"></i><span>Profile</span></button>
+    </footer>
+
+    <script src="index.js"></script>
+</body>
+</html>
